@@ -1,0 +1,13 @@
+# macOS специфичные файлы
+._*
+
+# Python __pycache__
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+.DS_Store
+.vscode
+.vscode/
+.env
+.txt

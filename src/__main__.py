@@ -1,0 +1,67 @@
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
+
+from config import settings
+from src.database.db import db, async_session
+from src.handlers import commands, user_handlers, admin_handlers
+from src.middlewares.database import DatabaseMiddleware
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+bot = Bot(
+        token=settings.BOT_TOKEN, 
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+dp = Dispatcher()
+
+
+async def set_commands(bot: Bot):
+    commands = [
+        BotCommand(command="/start", description="Перезапустить бота")
+    ]
+    await bot.set_my_commands(commands)
+
+
+
+async def main():
+    
+    await db.init()
+    await db.init_models()
+    
+    await set_commands(bot)
+    
+    # async with async_session() as session:
+        # aiocron.crontab('0 10 * * *', func=cront.answer_users, start=True, args=[bot, session])  
+
+        # await webhook.start_payments_webhook(bot, session)
+    
+    dp.include_routers(
+        commands.router,
+        admin_handlers.router,
+        user_handlers.router
+    )
+    dp.update.outer_middleware(DatabaseMiddleware())
+    
+    try:
+        logger.info("🚀 Бот запущен")
+        logger.info("⏰ Cron задачи запущены")
+        await dp.start_polling(bot, skip_updates=True)
+    finally:
+        await bot.session.close()
+        logger.info("🔌 Бот остановлен")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("👋 Бот остановлен пользователем") 
