@@ -2,9 +2,11 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class AdminStates(StatesGroup):
-    """Состояния для админ панели"""
-    waiting_broadcast_message = State()
-    waiting_user_id = State()
+    answer = State()
+    day_correct = State()
+    add_tariff_name = State()
+    add_tariff_days = State()
+    add_tariff_price = State()
 
 
 class UserStates(StatesGroup):

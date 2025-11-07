@@ -18,7 +18,7 @@ class User(Base):
         Index("ix_users_referrer_id", "referrer_id"),
     )
 
-    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     full_name: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now(), nullable=False)
@@ -41,7 +41,7 @@ class Tariff(Base):
     __tablename__ = "tariffs"
     __table_args__ = (Index("ix_tariffs_is_active", "is_active"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     days: Mapped[int] = mapped_column(Integer, nullable=False)
     price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -58,7 +58,7 @@ class Payment(Base):
         Index("ix_payments_external_id", "external_id"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     tariff_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tariffs.id", ondelete="SET NULL"), nullable=True)
     method: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -77,7 +77,7 @@ class Withdrawal(Base):
         Index("ix_withdrawals_status", "status"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     card_number: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -94,7 +94,7 @@ class ReferralBonus(Base):
         Index("ix_referral_bonuses_referral_id", "referral_id"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     referrer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     referral_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False)

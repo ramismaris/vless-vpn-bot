@@ -9,6 +9,8 @@ from config import settings
 from src.database.db import db, async_session
 from src.handlers import commands, user_handlers, admin_handlers
 from src.middlewares.database import DatabaseMiddleware
+from src.database.repositories import SettingsRepository
+from src.database.db import async_session
 
 
 logging.basicConfig(
@@ -36,6 +38,11 @@ async def main():
     
     await db.init()
     await db.init_models()
+    async with async_session() as session:
+        await SettingsRepository.init_default_settings(
+            async_session=session
+        )
+        logging.info("✅ Default values init")
     
     await set_commands(bot)
     
