@@ -11,7 +11,7 @@ from src.filters.admin import AdminFilter
 from src.keyboards.admin_keyboards import (
     admin_menu, back_to_admin_page_btn, answer_page_btn, editor_page_btns,
     cancel_correct_btn, back_to_tariffs_editor_page, address_pagination_btns,
-    cancel_tariffs_edit_btn
+    cancel_tariffs_edit_btn, tariff_info_page_btn, cancel_tariff_edit_page
 )
 from src.database.db import db
 from src.config import settings
@@ -587,6 +587,47 @@ async def add_tariff_price_page(message: Message, session: AsyncSession, state: 
 #=======================#TARIFF PAGE#=======================#
 @router.callback_query(F.data.startswith("edit_tariff_"))
 async def tariffs_info_page(callback: CallbackQuery, session: AsyncSession, state: FSMContext):
+    await state.clear()
+    tariff_id = int(callback.data.split("_")[2])
+    tariff_info = await TariffRepository.give_tariff(
+        async_session=session,
+        tariff_id=tariff_id
+    )
+    if tariff_info.is_active == True:
+        status = "🟢 Включить"
+        value = False
+    else:
+        status = "🔴 Отключить"
+        value = True
+    
+    await TariffRepository.update_tariff_info(
+        async_session=session,
+        tariff_id=tariff_id,
+        agreement="is_active",
+        value=value
+    )
+
+    txt = (
+        "ℹ️ <b>Информация о тарифе:</b>\n\n"
+        f"    ● Название тарифа: '{tariff_info.name}'\n"
+        f"    ● Количество дней по тарифу: {tariff_info.days}\n"
+        f"    ● Стоимость тарифа: {tariff_info.days}"
+    )
+    btn = tariff_info_page_btn(
+        tariff_id=tariff_id,
+        status=status
+    )
+    await try_edit_callback(
+        callback=callback,
+        text=txt,
+        reply_markup=btn,
+        parse_ode="HTML"
+    )
+
+
+@router.callback_query(F.data.startswith("on_off_"))
+async def tariffs_info_page(callback: CallbackQuery, session: AsyncSession, state: FSMContext):
+    await state.clear()
     tariff_id = int(callback.data.split("_")[2])
     tariff_info = await TariffRepository.give_tariff(
         async_session=session,
@@ -598,4 +639,107 @@ async def tariffs_info_page(callback: CallbackQuery, session: AsyncSession, stat
         f"    ● Количество дней по тарифу: {tariff_info.days}\n"
         f"    ● Стоимость тарифа: {tariff_info.days}"
     )
-    btn = 
+    if tariff_info.is_active == True:
+        status = "🔴 Отключить"
+    else:
+        status = "🟢 Включить"
+    btn = tariff_info_page_btn(
+        tariff_id=tariff_id,
+        status=status
+    )
+    await try_edit_callback(
+        callback=callback,
+        text=txt,
+        reply_markup=btn,
+        parse_ode="HTML"
+    )
+
+
+@router.callback_query(F.data.startswith("info_page_"))
+async def info_tariff_agreement_edit_page(callback: CallbackQuery, session: AsyncSession, state: FSMContext):
+    tariff_id = int(callback.data.split("_")[3])
+    agreement = callback.data.split("_")[2]
+    texts_dict = {
+        "name": "✍🏻 Введите новое название тарифа",
+        "days": "🗓️ Введите новое количество дней работы тарифа",
+        "price": "💰 Введите новую стоимость"
+    }
+    btn = cancel_tariff_edit_page(
+        tariff_id=tariff_id
+    )
+    mes_del = await try_edit_callback(
+        callback=callback,
+        text=texts_dict.get(agreement),
+        reply_markup=btn,
+        parse_mode="HTML"
+    )
+
+    await state.update_data(
+        mes_del=mes_del.message_id,
+        tariff_id=tariff_id,
+        agreement=agreement
+    )
+    await state.set_state(
+        state=AdminStates.tariff_edit_values
+    )
+
+
+@router.message(AdminStates.tariff_edit_values)
+async def tariff_edit_values_page(message: Message, session: AsyncSession, state: FSMContext):
+    state_info = await delete_state_message(
+        state=state,
+        message=message
+    )
+    tariff_id = state_info.get("tariff_id")
+    agreement = state_info.get("agreement")
+    if agreement in ['days', 'price']:
+        try:
+            value = int(message.text)
+        except:
+            txt = "❌ Введите значение в виде числа"
+            btn = cancel_tariff_edit_page(
+                tariff_id=tariff_id
+            )
+            mes_del = await message.answer(
+                text=txt,
+                reply_markup=btn,
+                parse_mode="HTML"
+            )
+            await state.update_data(
+                mes_del=mes_del.message_id
+            )
+            return
+    else:
+        value = message.text
+    await TariffRepository.update_tariff_info(
+        async_session=session,
+        tariff_id=tariff_id,
+        agreement=agreement,
+        value=value
+    )
+    await session.flush()
+    await state.clear()
+
+    tariff_info = await TariffRepository.give_tariff(
+        async_session=session,
+        tariff_id=tariff_id
+    )
+    txt = (
+        "ℹ️ <b>Информация о тарифе:</b>\n\n"
+        f"    ● Название тарифа: '{tariff_info.name}'\n"
+        f"    ● Количество дней по тарифу: {tariff_info.days}\n"
+        f"    ● Стоимость тарифа: {tariff_info.days}"
+    )
+    if tariff_info.is_active == True:
+        status = "🔴 Отключить"
+    else:
+        status = "🟢 Включить"
+    btn = tariff_info_page_btn(
+        tariff_id=tariff_id,
+        status=status
+    )
+    await message.answer(
+        text=txt,
+        reply_markup=btn,
+        parse_ode="HTML"
+    )

@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, BigInteger, String, Text, Boolean, TIMESTAMP, 
-    ForeignKey, Integer, DECIMAL, Index
+    ForeignKey, Integer, Index
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -61,10 +61,10 @@ class Payment(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     tariff_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tariffs.id", ondelete="SET NULL"), nullable=True)
-    method: Mapped[str] = mapped_column(String(32), nullable=False)
+    method: Mapped[str] = mapped_column(String(32), nullable=True)
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
-    credited_cents: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    credited_cents: Mapped[int] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="create", nullable=False)
     external_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now(), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)

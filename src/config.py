@@ -50,6 +50,7 @@ class Settings(BaseSettings):
         "payment_stars_enabled": "Включить оплату Telegram Stars",
     }
     PAGINATION_COUNT: int = 2
+    CRYPTO_PAY_TOKEN: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

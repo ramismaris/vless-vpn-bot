@@ -15,9 +15,50 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
     
+    @staticmethod
+    async def get_user_friends(async_session: AsyncSession, user_id: int):
+        result = await async_session.execute(
+            select(User)
+            .where(
+                User.referrer_id == user_id
+            )
+        )
+        return result.scalars().all()
+    
+    @staticmethod
+    async def plus_reffered_balance(async_session: AsyncSession, user_id: int, amount: int):
+        user_info = await UserRepository.give_user(
+            async_session=async_session,
+            user_id=user_id
+        )
+        await async_session.execute(
+            update(User)
+            .where(
+                User.user_id == user_id
+            )
+            .values(
+                referral_link=user_info.referral_balance + amount
+            )
+        )
 
     @staticmethod
-    async def create_or_update_user(async_session: AsyncSession, user_id: int, username: str, full_name: str) -> User:
+    async def plus_balance(async_session: AsyncSession, user_id: int, amount: int):
+        user_info = await UserRepository.give_user(
+            async_session=async_session,
+            user_id=user_id
+        )
+        await async_session.execute(
+            update(User)
+            .where(
+                User.user_id == user_id
+            )
+            .values(
+                main_balance = user_info.main_balance + amount
+            )
+        )
+
+    @staticmethod
+    async def create_or_update_user(async_session: AsyncSession, user_id: int, username: str, full_name: str, referrer_id: int) -> User:
         user_info_on_base = await async_session.execute(
             select(User)
             .where(User.user_id == user_id)
@@ -37,7 +78,8 @@ class UserRepository:
             User(
                 user_id=user_id,
                 username=username,
-                full_name=full_name
+                full_name=full_name,
+                referrer_id=referrer_id
             )
         )
 

@@ -39,6 +39,12 @@ cancel_tariffs_edit_btn = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 
+def cancel_tariff_edit_page(tariff_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад", callback_data=f"edit_tariff_{tariff_id}")]
+    ])
+
+
 def get_admin_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
@@ -66,10 +72,10 @@ answer_page_btn = InlineKeyboardMarkup(inline_keyboard=[
 
 def tariff_info_page_btn(tariff_id: int, status: str = "🔴 Отключить"):
     return InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="✍🏻 Редактировать название", callback_data="info_page_name")],
-    [InlineKeyboardButton(text="🗓️ Редактировать количество дней", callback_data="info_page_days")],
-    [InlineKeyboardButton(text="💰 Редактировать цену", callback_data="info_page_price")],
-    [InlineKeyboardButton(text=, callback_data="info_page_price")],
+    [InlineKeyboardButton(text="✍🏻 Редактировать название", callback_data=f"info_page_name_{tariff_id}")],
+    [InlineKeyboardButton(text="🗓️ Редактировать количество дней", callback_data=f"info_page_days_{tariff_id}")],
+    [InlineKeyboardButton(text="💰 Редактировать цену", callback_data=f"info_page_price_{tariff_id}")],
+    [InlineKeyboardButton(text=status, callback_data=f"on_off_{tariff_id}")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="tariffs_edit")]
 ])
 

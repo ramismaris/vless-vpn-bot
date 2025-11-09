@@ -30,4 +30,13 @@ class TariffRepository:
             days=days,
             price_cents=price_cents
         )
-        async_session.add(Tariff)
+        async_session.add(new_tariff)
+
+    @staticmethod
+    async def update_tariff_info(async_session: AsyncSession, agreement: str, value: int|str, tariff_id: int):
+        column = getattr(Tariff, agreement)
+        await async_session.execute(
+            update(Tariff)
+            .where(Tariff.id == tariff_id)
+            .values({column: value})
+        )

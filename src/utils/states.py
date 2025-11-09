@@ -7,9 +7,9 @@ class AdminStates(StatesGroup):
     add_tariff_name = State()
     add_tariff_days = State()
     add_tariff_price = State()
+    tariff_edit_values = State()
 
 
 class UserStates(StatesGroup):
-    """Состояния для пользователей"""
-    waiting_feedback = State()
+    pay_sum = State()
     waiting_order_data = State() 

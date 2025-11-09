@@ -1,20 +1,29 @@
 import logging
 import asyncio
 import openpyxl
+import base64
+from aiocryptopay import AioCryptoPay, Networks
+from aiogram.utils.deep_linking import create_start_link
+from aiogram.types import Message
 from typing import List
 from openpyxl.styles import Font, Alignment, PatternFill
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram import Bot
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
+from src.config import settings
 from src.database.models import User
+from src.database.repositories import PayRepository, UserRepository
+from src.keyboards.user_keyboards import user_menu
 
 logger = logging.getLogger(__name__)
 
+crypto = AioCryptoPay(token=settings.CRYPTO_PAY_TOKEN, network=Networks.TEST_NET)
+
 
 async def safe_answer(message: Message, text: str, reply_markup=None, **kwargs):
-    """Безопасная отправка сообщения"""
     try:
         return await message.answer(
             text=text, 
@@ -24,7 +33,6 @@ async def safe_answer(message: Message, text: str, reply_markup=None, **kwargs):
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения: {e}")
         try:
-            # Попробуем отправить без разметки
             return await message.answer(text=text, **kwargs)
         except Exception as e2:
             logger.error(f"Критическая ошибка отправки сообщения: {e2}")
@@ -32,7 +40,6 @@ async def safe_answer(message: Message, text: str, reply_markup=None, **kwargs):
 
 
 async def try_edit_callback(callback: CallbackQuery, text: str, reply_markup=None, **kwargs):
-    """Попытка редактирования сообщения из callback"""
     try:
         return await callback.message.edit_text(
             text=text,
@@ -50,28 +57,6 @@ async def try_edit_callback(callback: CallbackQuery, text: str, reply_markup=Non
             reply_markup=reply_markup,
             **kwargs
         )
-
-
-async def try_delete_message(message: Message):
-    """Попытка удаления сообщения"""
-    try:
-        await message.delete()
-    except Exception as e:
-        logger.error(f"Ошибка при удалении сообщения: {e}")
-
-
-def format_price(price: float) -> str:
-    """Форматирование цены"""
-    if price == int(price):
-        return f"{int(price)} ₽"
-    return f"{price:.2f} ₽"
-
-
-def truncate_text(text: str, max_length: int = 100) -> str:
-    """Обрезка текста с троеточием"""
-    if len(text) <= max_length:
-        return text
-    return text[:max_length-3] + "..." 
 
 
 async def delete_state_message(state: FSMContext, message: Message) -> dict:
@@ -165,3 +150,92 @@ def export_users_to_excel(users: List[User]):
 
     wb.save(filename)
     return filename
+
+
+async def fix_base64_padding(payload):
+    missing_padding = len(payload) % 4
+    if missing_padding:
+        payload += '=' * (4 - missing_padding)
+    return payload
+
+
+async def decode_payload(payload: str) -> str:
+    payload = await fix_base64_padding(payload)
+    return base64.b64decode(payload).decode("utf-8")
+
+async def get_reflink(user_id: str, bot: Bot):
+    start_link = await create_start_link(bot, str(user_id), encode=True)
+    return start_link
+
+
+async def create_invoice_crypto_pay(callback: CallbackQuery, amount: int, pay_id: int):
+    try:
+        invoice = await crypto.create_invoice(
+            asset="USDT",
+            amount=str(amount),
+            description=f"💰 Пополнение баланса на {amount} USDT",
+            payload=f"{callback.message.chat.id}:{int(amount)}:{str(pay_id)}",
+        )
+    except Exception as e:
+        logging.warning(f"Error create invoice: {e}")
+        return None
+    if hasattr(invoice, "bot_invoice_url"):
+        url=invoice.bot_invoice_url
+        return url
+    else:
+        logging.error("not found error in create invoice")
+        return None
+        
+          
+async def create_user_pay(
+        session: AsyncSession, user_id: int, tariff_id: int|None,
+        amount_cents: int, prise: int = None
+):
+    await PayRepository.add_payment(
+        async_session=session,
+        user_id=user_id,
+        tariff_id=tariff_id,
+        amount_cents=amount_cents,
+        prise=prise
+    )
+
+async def pay_process(session: AsyncSession, pay_id: int, amount: int, bot: Bot):
+    pay_info = await PayRepository.get_pay(
+        async_session=session,
+        pay_id=pay_id
+    )
+    user_info = await UserRepository.give_user(
+        async_session=session,
+        user_id=pay_info.user_id
+    )
+    if user_info.referrer_id:
+        try:
+            txt = "✅ Приглашенный вами друг пополнил баланс, вам начислено 50 бонусных рублей"
+            await bot.send_message(
+                chat_id=user_info.referrer_id,
+                text=txt,
+                parse_mode="HTML"
+            )
+        except:
+            logging.error("error send message")
+        await UserRepository.plus_reffered_balance(
+            async_session=session,
+            user_id=user_info.referrer_id,
+            amount=50
+        )
+    await UserRepository.plus_balance(
+        async_session=session,
+        user_id=pay_info.user_id,
+        amount=amount
+    )
+    try:
+        txt = "✅ Вы успешно оплатили подписку"
+        btn = user_menu
+        await bot.send_message(
+            chat_id=pay_info.user_id,
+            text=txt,
+            reply_markup=btn,
+            parse_mode="HTML"
+        )
+    except:
+        logging.error("error send message")
