@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.fsm.context import FSMContext
 
 from src.keyboards.user_keyboards import user_menu, balance_keyboard, tariffs_btn
-from src.utils.helpers import get_reflink, decode_payload
+from src.utils.helpers import get_reflink, decode_payload, give_me_key
 from src.database.repositories import UserRepository, SettingsRepository, TariffRepository
 
 logger = logging.getLogger(__name__)
@@ -56,13 +56,14 @@ async def help_command(message: Message, state: FSMContext):
     await state.clear()
     txt = (
         "ℹ️ Нужна помощь, или возникли вопросы?\n"
-        "Обратитесь к <a href='https://google.com>администратору</a>"
+        "Обратитесь к <a href='https://google.com'>администратору</a>"
     )
     btn = user_menu
     
     await message.answer(
         text=txt,
-        reply_markup=btn
+        reply_markup=btn,
+        parse_mode="HTML"
     )
 
 
@@ -91,7 +92,7 @@ async def balance_command(message: Message, session: AsyncSession, state: FSMCon
 
     txt = (
         "💰 <b>Ваш баланс</b>:\n\n"
-        f"</b>Основной баланс:</b> {main_rub:.2f} ₽\n"
+        f"<b>Основной баланс:</b> {main_rub:.2f} ₽\n"
         f"→ Тратится на подписку: {daily_rub:.2f} ₽/день\n"
         f"→ {days_text}\n\n"
         f"<b>Реферальный баланс:</b> {referral_rub:.2f} ₽\n"
@@ -142,17 +143,35 @@ async def add_friend_command(message: Message, session: AsyncSession, state: FSM
 async def buy_command(message: Message, session: AsyncSession, state: FSMContext):
 
     txt = (
-        "💰 <b>Меню приобретения"
+        "💰 <b>Меню приобретения</b>"
         "Выберите тариф для приобретения"
     )
-    other_tariffs = TariffRepository.give_other_tariffs(
+    other_tariffs = await TariffRepository.give_other_tariffs(
         async_session=session
     )
-    btn = await tariffs_btn(
+    btn = tariffs_btn(
         other_tariffs=other_tariffs
     )
     await message.answer(
         text=txt,
         reply_markup=btn,
         parse_mode="HTML"
+    )
+
+
+@router.message(F.text == "🔑 Мой ключ")
+@router.message(Command("key"))
+async def key_command(message: Message, session: AsyncSession, state: FSMContext):
+    user_id = message.from_user.id
+    user_info = await  UserRepository.give_user(
+        async_session=session,
+        user_id=user_id
+    )
+    day_price = await SettingsRepository.get_daily_cost_cents(
+        async_session=session
+    )
+    # if user_info.vpn_key is None:
+    #     if user_info.main_balance >= int(day_price):
+    await give_me_key(
+        full_name=user_info.full_name
     )

@@ -42,20 +42,26 @@ class UserRepository:
         )
 
     @staticmethod
-    async def plus_balance(async_session: AsyncSession, user_id: int, amount: int):
+    async def plus_balance(async_session: AsyncSession, user_id: int, amount: int) -> int:
+        print(user_id)
         user_info = await UserRepository.give_user(
             async_session=async_session,
             user_id=user_id
         )
+        result = user_info.main_balance + amount
+        print(result)
         await async_session.execute(
             update(User)
             .where(
                 User.user_id == user_id
             )
             .values(
-                main_balance = user_info.main_balance + amount
+                main_balance = result,
+                is_active = True
             )
         )
+
+        return result / 100
 
     @staticmethod
     async def create_or_update_user(async_session: AsyncSession, user_id: int, username: str, full_name: str, referrer_id: int) -> User:
@@ -74,7 +80,7 @@ class UserRepository:
             )
             return user_info
         
-        await async_session.add(
+        async_session.add(
             User(
                 user_id=user_id,
                 username=username,

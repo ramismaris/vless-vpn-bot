@@ -5,12 +5,13 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 
-from config import settings
+from src.config import settings
 from src.database.db import db, async_session
 from src.handlers import commands, user_handlers, admin_handlers
 from src.middlewares.database import DatabaseMiddleware
 from src.database.repositories import SettingsRepository
 from src.database.db import async_session
+from src.utils.webhook import start_webhook_server
 
 
 logging.basicConfig(
@@ -43,7 +44,9 @@ async def main():
             async_session=session
         )
         logging.info("✅ Default values init")
-    
+    await start_webhook_server(
+        bot=bot
+    )
     await set_commands(bot)
     
     # async with async_session() as session:

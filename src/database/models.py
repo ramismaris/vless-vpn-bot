@@ -25,7 +25,7 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     referrer_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True)
-    referral_link: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    referral_link: Mapped[str] = mapped_column(String(256), nullable=True, unique=True)
     has_channel_bonus: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     main_balance: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

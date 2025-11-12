@@ -8,6 +8,7 @@ from src.utils.helpers import safe_answer, try_edit_callback, delete_state_messa
 from src.database.repositories import UserRepository, SettingsRepository, TariffRepository, PayRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.utils.states import UserStates
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -59,13 +60,13 @@ async def back_to_balance_page(callback: CallbackQuery, session: AsyncSession, s
 async def balance_plus_page(callback: CallbackQuery, session: AsyncSession, state: FSMContext):
     await state.clear()
     txt = (
-        "💰 <b>Меню приобретения"
+        "💰 <b>Меню приобретения</b>\n"
         "Выберите тариф для приобретения"
     )
-    other_tariffs = TariffRepository.give_other_tariffs(
+    other_tariffs = await TariffRepository.give_other_tariffs(
         async_session=session
     )
-    btn = await tariffs_btn(
+    btn = tariffs_btn(
         other_tariffs=other_tariffs
     )
     await try_edit_callback(
@@ -153,11 +154,12 @@ async def pay_sum_page(message: Message, session: AsyncSession, state: FSMContex
         )
         return
     
+    cents_payment = input_pay_sum * 100
     pay_id = await PayRepository.add_payment(
             async_session=session,
             user_id=user_id,
             tariff_id=None,
-            amount_cents=input_pay_sum
+            amount_cents=cents_payment
         )
     btn = pay_btn(
             pay_id=pay_id
@@ -172,7 +174,7 @@ async def pay_sum_page(message: Message, session: AsyncSession, state: FSMContex
 
 
 @router.callback_query(F.data.startswith("end_pay_"))
-async def end_pay_page(callback: CallbackQuery, session: AsyncSession, state: FSMContext):
+async def end_pay_page(callback: CallbackQuery, session: AsyncSession):
     pay_system = callback.data.split("_")[2]
     pay_id = int(callback.data.split("_")[3])
 
@@ -180,11 +182,12 @@ async def end_pay_page(callback: CallbackQuery, session: AsyncSession, state: FS
         async_session=session,
         pay_id=pay_id
     )
+    amount_rub = pay_info.amount_cents / 100
     if pay_system == "crypto":
         link = await create_invoice_crypto_pay(
             callback=callback,
             pay_id=pay_id,
-            amount=pay_info.amount_cents
+            amount=amount_rub / settings.USDT_COURSE
         )
         txt = "🔗 Ссылка для оплаты создана"
         btn = pay_link_btn(

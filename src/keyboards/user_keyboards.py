@@ -28,7 +28,7 @@ def tariffs_btn(other_tariffs: List[Tariff], back_btn: bool=False):
     btns.append([InlineKeyboardButton(text="✍🏻 Свою сумму", callback_data="user_buy_main")])
     if back_btn is True:
         btns.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_balance_page")])
-    return ReplyKeyboardMarkup(keyboard=btns)
+    return InlineKeyboardMarkup(inline_keyboard=btns)
 
 
 def balance_keyboard(balance: int) -> InlineKeyboardMarkup:
@@ -45,13 +45,13 @@ def pay_btn(pay_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔐 CryptoPay", callback_data=f"end_pay_crypto_{pay_id}")],
         [InlineKeyboardButton(text="⭐️ TG Stars", callback_data=f"end_pay_stars_{pay_id}")],
-        [InlineKeyboardButton(text="☁️ Wata", callback_data=f"end_pay_wata_{pay_id}")]
+        [InlineKeyboardButton(text="☁️ Wata", callback_data=f"end_pay_wata_{pay_id}")],
         [InlineKeyboardButton(text="❌ Отменить", callback_data="balance_plus")]
     ])
 
 
 def pay_link_btn(link: str):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Оплатить", url=link)]
+        [InlineKeyboardButton(text="✅ Оплатить", url=link)],
         [InlineKeyboardButton(text="❌ Отменить", callback_data="balance_plus")]
     ])

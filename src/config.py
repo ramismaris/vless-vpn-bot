@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     }
     PAGINATION_COUNT: int = 2
     CRYPTO_PAY_TOKEN: str
+    VPN_GB: int = 50
+
+    USDT_COURSE: int
 
     model_config = SettingsConfigDict(
         env_file=".env",

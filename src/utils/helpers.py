@@ -2,6 +2,13 @@ import logging
 import asyncio
 import openpyxl
 import base64
+import requests
+import secrets
+import re
+import uuid
+
+from aiogram.types import LabeledPrice
+from transliterate import translit
 from aiocryptopay import AioCryptoPay, Networks
 from aiogram.utils.deep_linking import create_start_link
 from aiogram.types import Message
@@ -12,6 +19,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram import Bot
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 from src.config import settings
 from src.database.models import User
@@ -186,24 +194,13 @@ async def create_invoice_crypto_pay(callback: CallbackQuery, amount: int, pay_id
         logging.error("not found error in create invoice")
         return None
         
-          
-async def create_user_pay(
-        session: AsyncSession, user_id: int, tariff_id: int|None,
-        amount_cents: int, prise: int = None
-):
-    await PayRepository.add_payment(
-        async_session=session,
-        user_id=user_id,
-        tariff_id=tariff_id,
-        amount_cents=amount_cents,
-        prise=prise
-    )
 
 async def pay_process(session: AsyncSession, pay_id: int, amount: int, bot: Bot):
     pay_info = await PayRepository.get_pay(
         async_session=session,
         pay_id=pay_id
     )
+ 
     user_info = await UserRepository.give_user(
         async_session=session,
         user_id=pay_info.user_id
@@ -223,13 +220,13 @@ async def pay_process(session: AsyncSession, pay_id: int, amount: int, bot: Bot)
             user_id=user_info.referrer_id,
             amount=50
         )
-    await UserRepository.plus_balance(
+    new_balance = await UserRepository.plus_balance(
         async_session=session,
         user_id=pay_info.user_id,
         amount=amount
     )
     try:
-        txt = "✅ Вы успешно оплатили подписку"
+        txt = f"✅ Вы успешно оплатили подписку\n\nВаш текущий баланс: {new_balance}"
         btn = user_menu
         await bot.send_message(
             chat_id=pay_info.user_id,
@@ -239,3 +236,77 @@ async def pay_process(session: AsyncSession, pay_id: int, amount: int, bot: Bot)
         )
     except:
         logging.error("error send message")
+
+
+async def give_me_key(full_name: str, ):
+    my_date = datetime.now() + relativedelta(years=20)
+    expireAt = my_date.isoformat() + 'Z'
+    url = settings.VPN_BASE_URL
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {settings.VPN_KEY}"
+    }
+    
+    full_name = translit(full_name, 'ru', reversed=True) if any(c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя' for c in full_name.lower()) else full_name
+    full_name = re.sub(r'[^a-zA-Z0-9_-]', '_', full_name)  
+    full_name = re.sub(r'_+', '_', full_name).strip('_') 
+    if len(full_name) < 3:
+        full_name = f"user_{secrets.token_hex(4)}" 
+
+    my_date = datetime.now() + relativedelta(years=20)
+    expireAt = my_date.isoformat() + 'Z'
+    data = {
+        "username": full_name,
+        "status": "ACTIVE",
+        "shortUuid": secrets.token_hex(4),  # Короткий уникальный ID (8 chars)
+        "trojanPassword": secrets.token_hex(8),  # Рандомный пароль >=8 chars
+        "vlessUuid": str(uuid.uuid4()),  # Валидный UUID
+        "ssPassword": secrets.token_hex(8),  # Рандомный пароль >=8 chars
+        "trafficLimitBytes": settings.VPN_GB,
+        "trafficLimitStrategy": "NO_RESET",
+        "expireAt": expireAt,
+        "description": "My VPN user",
+        "hwidDeviceLimit": 0,
+        "activeInternalSquads": []  # Пустой массив
+        # Опущены: createdAt, lastTrafficResetAt, uuid, tag, telegramId, email, externalSquadUuid — сервер сгенерирует
+    }
+
+    # Отправка POST-запроса
+    response = requests.post(url, headers=headers, json=data)
+
+    # Проверка ответа
+    if response.status_code == 200 or response.status_code == 201:  # Успех (created)
+        logging.info("Успех! Ответ от API:")
+        logging.info(response.json())  # Здесь будут ключи: uuid, vlessUuid, trojanPassword и т.д.
+    else:
+        logging.info(f"Ошибка: {response.status_code}")
+        logging.info(response.text)  # Для отладки
+
+    # Пример: извлечение ключей из ответа
+    if response.status_code in (200, 201):
+        result = response.json().get("response", {})
+        vless_uuid = result.get("vlessUuid")
+        trojan_password = result.get("trojanPassword")
+        subscription_url = result.get("subscriptionUrl")
+        logging.info(f"VLESS UUID: {vless_uuid}")
+        logging.info(f"Trojan Password: {trojan_password}")
+        logging.infos(f"Subscription URL: {subscription_url}")
+
+
+async def create_invoice(message: Message):
+    one_star = LabeledPrice(label='Доступ к VPN на 1 месяц', amount=10)
+    await message.bot.send_invoice(
+        chat_id=message.chat.id,
+        title="Оплата VPN-доступа",
+        description="Получи ключ для VPN на 20 лет за 10 Stars",
+        provider_token="", 
+        currency="XTR", 
+        photo_url="https://example.com/vpn_photo.jpg", 
+        photo_width=800,  
+        photo_height=600,
+        photo_size=100000,  
+        is_flexible=False, 
+        prices=[one_star],
+        start_parameter="vpn-access", 
+        payload="vpn:10_stars" 
+    )

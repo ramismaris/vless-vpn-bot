@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, declarative_base
-from config import settings
+from src.config import settings
 from sqlalchemy.ext.declarative import DeclarativeMeta
+from src.database.models import Base
 import asyncpg
 import logging
 
@@ -12,8 +13,6 @@ engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = async_sessionmaker(
     engine, expire_on_commit=False, class_=AsyncSession
 )
-
-Base: DeclarativeMeta = declarative_base()
 
 
 class Database:

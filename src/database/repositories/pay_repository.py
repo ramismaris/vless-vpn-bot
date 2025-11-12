@@ -30,3 +30,14 @@ class PayRepository:
         )
         await async_session.flush()
         return new_pay.id
+    
+    @staticmethod
+    async def payment_update_sum(async_session: AsyncSession, buy_id: int, new_value) -> int:
+        await async_session.execute(
+            update(Payment)
+            .where(Payment.id == buy_id)
+            .values(
+                amount_cents = new_value
+            )
+        )
+        await async_session.flush()
