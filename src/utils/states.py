@@ -13,3 +13,5 @@ class AdminStates(StatesGroup):
 class UserStates(StatesGroup):
     pay_sum = State()
     waiting_order_data = State() 
+    give_money_sum = State()
+    give_money_card = State()

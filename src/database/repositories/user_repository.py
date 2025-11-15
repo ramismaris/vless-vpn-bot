@@ -1,11 +1,48 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, insert, func
 from datetime import datetime, timedelta
+from typing import List
 
 from src.database.models import User, Payment
 
 
 class UserRepository:
+
+    @staticmethod
+    async def deactivate(async_session: AsyncSession, user_id: int):
+        await async_session.execute(
+            update(User)
+            .where(
+                User.user_id == user_id
+            )
+            .values(
+                is_active = False
+            )
+        )
+
+    @staticmethod
+    async def activate(async_session: AsyncSession, user_id: int):
+        await async_session.execute(
+            update(User)
+            .where(
+                User.user_id == user_id
+            )
+            .values(
+                is_active = True
+            )
+        )
+
+    @staticmethod
+    async def update_balance(async_session: AsyncSession, user_id: int, new_balance: int):
+        await async_session.execute(
+            update(User)
+            .where(
+                User.user_id == user_id
+            )
+            .values(
+                main_balance = new_balance
+            )
+        )
 
     @staticmethod
     async def give_user(async_session: AsyncSession, user_id: int) -> User:
@@ -128,3 +165,27 @@ class UserRepository:
             select(User)
         )
         return total_users.scalars().all()
+    
+    @staticmethod
+    async def give_other_sub_users(async_session: AsyncSession) -> List[User]:
+        total_users = await async_session.execute(
+            select(User)
+            .where(
+                User.is_active == True
+            )
+        )
+        return total_users.scalars().all()
+    
+    @staticmethod
+    async def update_user_vpn_values(async_session: AsyncSession, user_id: int, uuid: str, key: str, trojan_password: str):
+        await async_session.execute(
+            update(User)
+            .where(
+                User.user_id == user_id
+            )
+            .values(
+                vpn_key=key,
+                vless_uuid=uuid,
+                password=trojan_password
+            )
+        )

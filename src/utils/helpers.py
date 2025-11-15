@@ -225,6 +225,12 @@ async def pay_process(session: AsyncSession, pay_id: int, amount: int, bot: Bot)
         user_id=pay_info.user_id,
         amount=amount
     )
+    if user_info.vless_uuid:
+        await user_enable(
+            user_id=pay_info.user_id,
+            user_uuid=user_info.vless_uuid,
+            session=session
+        )
     try:
         txt = f"✅ Вы успешно оплатили подписку\n\nВаш текущий баланс: {new_balance}"
         btn = user_menu
@@ -258,55 +264,79 @@ async def give_me_key(full_name: str, ):
     data = {
         "username": full_name,
         "status": "ACTIVE",
-        "shortUuid": secrets.token_hex(4),  # Короткий уникальный ID (8 chars)
-        "trojanPassword": secrets.token_hex(8),  # Рандомный пароль >=8 chars
-        "vlessUuid": str(uuid.uuid4()),  # Валидный UUID
-        "ssPassword": secrets.token_hex(8),  # Рандомный пароль >=8 chars
+        "shortUuid": secrets.token_hex(4),  
+        "trojanPassword": secrets.token_hex(8),  
+        "vlessUuid": str(uuid.uuid4()),  
+        "ssPassword": secrets.token_hex(8),  
         "trafficLimitBytes": settings.VPN_GB,
         "trafficLimitStrategy": "NO_RESET",
         "expireAt": expireAt,
         "description": "My VPN user",
         "hwidDeviceLimit": 0,
-        "activeInternalSquads": []  # Пустой массив
-        # Опущены: createdAt, lastTrafficResetAt, uuid, tag, telegramId, email, externalSquadUuid — сервер сгенерирует
+        "activeInternalSquads": [] 
+       
     }
 
-    # Отправка POST-запроса
     response = requests.post(url, headers=headers, json=data)
 
-    # Проверка ответа
-    if response.status_code == 200 or response.status_code == 201:  # Успех (created)
+    if response.status_code == 200 or response.status_code == 201:  
         logging.info("Успех! Ответ от API:")
-        logging.info(response.json())  # Здесь будут ключи: uuid, vlessUuid, trojanPassword и т.д.
+        logging.info(response.json()) 
     else:
         logging.info(f"Ошибка: {response.status_code}")
-        logging.info(response.text)  # Для отладки
+        logging.info(response.text)  
 
-    # Пример: извлечение ключей из ответа
     if response.status_code in (200, 201):
         result = response.json().get("response", {})
-        vless_uuid = result.get("vlessUuid")
+        vless_uuid = result.get("uuid")
         trojan_password = result.get("trojanPassword")
         subscription_url = result.get("subscriptionUrl")
         logging.info(f"VLESS UUID: {vless_uuid}")
         logging.info(f"Trojan Password: {trojan_password}")
-        logging.infos(f"Subscription URL: {subscription_url}")
+        logging.info(f"Subscription URL: {subscription_url}")
+        return vless_uuid, subscription_url, trojan_password
 
 
-async def create_invoice(message: Message):
-    one_star = LabeledPrice(label='Доступ к VPN на 1 месяц', amount=10)
-    await message.bot.send_invoice(
-        chat_id=message.chat.id,
-        title="Оплата VPN-доступа",
-        description="Получи ключ для VPN на 20 лет за 10 Stars",
-        provider_token="", 
-        currency="XTR", 
-        photo_url="https://example.com/vpn_photo.jpg", 
-        photo_width=800,  
-        photo_height=600,
-        photo_size=100000,  
-        is_flexible=False, 
-        prices=[one_star],
-        start_parameter="vpn-access", 
-        payload="vpn:10_stars" 
+async def user_deactivate(user_id: int, user_uuid: str, session: AsyncSession, new_amount:int):
+    headers={
+      "Authorization": f"Bearer {settings.VPN_KEY}"
+    }
+    url = f"{settings.VPN_BASE_URL}/{user_uuid}/actions/disable"
+    response = requests.post(url, headers=headers)
+    logging.info(f"User {user_id} deactivate \n\n")
+    logging.info(response.text)
+    await UserRepository.deactivate(
+        async_session=session,
+        user_id=user_id
     )
+    await UserRepository.update_balance(
+        async_session=session,
+        new_balance=new_amount,
+        user_id=user_id
+    )
+    if response.status_code == 200 or response.status_code == 201: 
+        logging.info("Успех! Ответ от API:")
+        logging.info(response.json())  
+    else:
+        logging.info(f"Ошибка: {response.status_code}")
+        logging.info(response.text)
+
+    
+async def user_enable(user_id: int, user_uuid: str, session: AsyncSession):
+    headers={
+      "Authorization": f"Bearer {settings.VPN_KEY}"
+    }
+    url = f"{settings.VPN_BASE_URL}/{user_uuid}/actions/enable"
+    response = requests.post(url, headers=headers)
+    logging.info(f"User {user_id} deactivate \n\n")
+    logging.info(response.text)
+    await UserRepository.activate(
+        async_session=session,
+        user_id=user_id
+    )
+    if response.status_code == 200 or response.status_code == 201: 
+        logging.info("Успех! Ответ от API:")
+        logging.info(response.json())  
+    else:
+        logging.info(f"Ошибка: {response.status_code}")
+        logging.info(response.text)

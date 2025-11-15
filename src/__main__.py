@@ -1,4 +1,5 @@
 import asyncio
+import aiocron
 import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -6,6 +7,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 
 from src.config import settings
+from src.utils.cron import balance_minus
 from src.database.db import db, async_session
 from src.handlers import commands, user_handlers, admin_handlers
 from src.middlewares.database import DatabaseMiddleware
@@ -49,10 +51,8 @@ async def main():
     )
     await set_commands(bot)
     
-    # async with async_session() as session:
-        # aiocron.crontab('0 10 * * *', func=cront.answer_users, start=True, args=[bot, session])  
+    # aiocron.crontab('* * * * *', func=balance_minus, start=True, args=[bot])  
 
-        # await webhook.start_payments_webhook(bot, session)
     
     dp.include_routers(
         commands.router,

@@ -1,28 +1,27 @@
 import logging
 import asyncio
+import os
 
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.filters import Command
-from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.fsm.context import FSMContext
+from sqlalchemy.ext.asyncio import AsyncSession
+from aiogram.types import Message, CallbackQuery, FSInputFile
 
-from src.filters.admin import AdminFilter
+from src.config import settings
+from src.utils.states import AdminStates
+from src.database.repositories import (
+    UserRepository, SettingsRepository, TariffRepository, WithdrawalsRepository
+)
+from src.utils.helpers import (
+    safe_answer, try_edit_callback, delete_state_message, answer_user_message,
+    export_users_to_excel
+)
 from src.keyboards.admin_keyboards import (
     admin_menu, back_to_admin_page_btn, answer_page_btn, editor_page_btns,
     cancel_correct_btn, back_to_tariffs_editor_page, address_pagination_btns,
     cancel_tariffs_edit_btn, tariff_info_page_btn, cancel_tariff_edit_page
 )
-from src.database.db import db
-from src.config import settings
-from src.utils.helpers import (
-    safe_answer, try_edit_callback, delete_state_message, answer_user_message,
-    export_users_to_excel
-)
-from src.database.repositories import (
-    UserRepository, SettingsRepository, TariffRepository
-)
-from src.utils.states import AdminStates
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -273,6 +272,10 @@ async def admin_base_page(callback: CallbackQuery, session: AsyncSession):
         caption=txt,
         reply_markup=btn
     )
+    try:
+        os.remove(file_path)
+    except:
+        logging.error("error delete file")
 
 
 #=======================#TARIFF EDITOR#=======================#
@@ -303,7 +306,7 @@ async def day_edit_page(callback: CallbackQuery, session: AsyncSession, state: F
         async_session=session
     )
     txt = (
-        f"ℹ️ Текущая стоимость дня: {now_day_edit}\n\n"
+        f"ℹ️ Текущая стоимость дня: {now_day_edit / 100} руб\n\n"
         f"Введите новую стоимость для замены"
     )
     btn = cancel_correct_btn
@@ -328,7 +331,7 @@ async def day_correct_page(message: Message, session: AsyncSession, state: FSMCo
         message=message
     )
     try:
-        new_price = message.text
+        new_price = int(message.text) * 100
     except:
         txt = "❌ Введите значение в виде числа"
         btn = cancel_correct_btn
@@ -379,7 +382,7 @@ async def tariffs_edit_page(callback: CallbackQuery, session: AsyncSession, stat
     end_point = 0 + settings.PAGINATION_COUNT
     total_pages = (len(other_tariffs) + settings.PAGINATION_COUNT - 1) // settings.PAGINATION_COUNT
 
-    btn = await address_pagination_btns(
+    btn = address_pagination_btns(
         other_tariffs=other_tariffs,
         start_point=start_point,
         end_point=end_point,
@@ -533,7 +536,7 @@ async def add_tariff_price_page(message: Message, session: AsyncSession, state: 
     )
     btn = cancel_tariffs_edit_btn
     try:
-        price_cents = int(message.text)
+        price_cents = int(message.text) * 100
     except:
         txt = "❌ Введите значение в виде числа"
         mes_del = await message.answer(
@@ -570,7 +573,7 @@ async def add_tariff_price_page(message: Message, session: AsyncSession, state: 
     end_point = 0 + settings.PAGINATION_COUNT
     total_pages = (len(other_tariffs) + settings.PAGINATION_COUNT - 1) // settings.PAGINATION_COUNT
 
-    btn = await address_pagination_btns(
+    btn = address_pagination_btns(
         other_tariffs=other_tariffs,
         start_point=start_point,
         end_point=end_point,
@@ -595,23 +598,14 @@ async def tariffs_info_page(callback: CallbackQuery, session: AsyncSession, stat
     )
     if tariff_info.is_active == True:
         status = "🟢 Включить"
-        value = False
     else:
         status = "🔴 Отключить"
-        value = True
-    
-    await TariffRepository.update_tariff_info(
-        async_session=session,
-        tariff_id=tariff_id,
-        agreement="is_active",
-        value=value
-    )
 
     txt = (
         "ℹ️ <b>Информация о тарифе:</b>\n\n"
         f"    ● Название тарифа: '{tariff_info.name}'\n"
         f"    ● Количество дней по тарифу: {tariff_info.days}\n"
-        f"    ● Стоимость тарифа: {tariff_info.days}"
+        f"    ● Стоимость тарифа: {tariff_info.price_cents / 100}"
     )
     btn = tariff_info_page_btn(
         tariff_id=tariff_id,
@@ -637,12 +631,21 @@ async def tariffs_info_page(callback: CallbackQuery, session: AsyncSession, stat
         "ℹ️ <b>Информация о тарифе:</b>\n\n"
         f"    ● Название тарифа: '{tariff_info.name}'\n"
         f"    ● Количество дней по тарифу: {tariff_info.days}\n"
-        f"    ● Стоимость тарифа: {tariff_info.days}"
+        f"    ● Стоимость тарифа: {tariff_info.price_cents / 100}"
     )
     if tariff_info.is_active == True:
-        status = "🔴 Отключить"
-    else:
         status = "🟢 Включить"
+        value = False
+    else:
+        status = "🔴 Отключить"
+        value = True
+    
+    await TariffRepository.update_tariff_info(
+        async_session=session,
+        tariff_id=tariff_id,
+        agreement="is_active",
+        value=value
+    )
     btn = tariff_info_page_btn(
         tariff_id=tariff_id,
         status=status
@@ -711,6 +714,9 @@ async def tariff_edit_values_page(message: Message, session: AsyncSession, state
             return
     else:
         value = message.text
+    if agreement == "price":
+        value *= 100
+        agreement = "price_cents"
     await TariffRepository.update_tariff_info(
         async_session=session,
         tariff_id=tariff_id,
@@ -728,7 +734,7 @@ async def tariff_edit_values_page(message: Message, session: AsyncSession, state
         "ℹ️ <b>Информация о тарифе:</b>\n\n"
         f"    ● Название тарифа: '{tariff_info.name}'\n"
         f"    ● Количество дней по тарифу: {tariff_info.days}\n"
-        f"    ● Стоимость тарифа: {tariff_info.days}"
+        f"    ● Стоимость тарифа: {tariff_info.price_cents / 100}"
     )
     if tariff_info.is_active == True:
         status = "🔴 Отключить"
@@ -743,3 +749,47 @@ async def tariff_edit_values_page(message: Message, session: AsyncSession, state
         reply_markup=btn,
         parse_ode="HTML"
     )
+
+
+@router.callback_query(F.data == "withdrawal_answer_")
+async def withdrawal_answer_page(callback: CallbackQuery, session: AsyncSession, state: FSMContext):
+    answer = callback.data.split("_")[2]
+    withdrawal_id = int(callback.data.split("_")[3])
+    withdrawal_info = await WithdrawalsRepository.get_on_id(
+        async_session=session,
+        withdrawal_id=withdrawal_id
+    )
+    if answer == "yes":
+        new_status = "paid"
+        user_txt = "Ваша заявка на вывод средств была подтверждена"
+        callback_text = "✅ Подтверждена"
+    else:
+        new_status = "cancel"
+        user_txt = "Ваша заявка на вывод средств была отклонена"
+        callback_text = "❌ Отклонена"
+    await WithdrawalsRepository.update_status(
+        async_session=session,
+        withdrawal_id=withdrawal_id,
+        new_status=new_status
+    )
+    user_id = withdrawal_info.user_id
+    try:
+        await callback.bot.send_message(
+            chat_id=user_id,
+            text=user_txt,
+            parse_mode="HTML"
+        )
+    except:
+        logging.error("error send message to user")
+    
+    txt = (
+        f"{callback.message.text}\n\n"
+        f"{callback_text}"
+    )
+    try:
+        await callback.message.edit_text(
+            text=txt,
+            reply_markup=None
+        )
+    except:
+        logging.error("error edit callback text")

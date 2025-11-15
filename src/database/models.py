@@ -32,6 +32,8 @@ class User(Base):
     referral_balance: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     vpn_key: Mapped[str | None] = mapped_column(String(512), nullable=True, unique=True)
+    vless_uuid: Mapped[str | None] = mapped_column(String(512), nullable=True, unique=True)
+    password: Mapped[str | None] = mapped_column(String(512), nullable=True)
     key_created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
     last_charge_at: Mapped[datetime | None] = mapped_column(TIMESTAMP, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -109,3 +111,11 @@ class SystemSetting(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class Instruction(Base):
+    __tablename__ = "instruction"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -1,7 +1,8 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from typing import List
 
-from src.database.models import Tariff
+from src.database.models import Tariff, Instruction
+from src.config import settings
 
 
 user_menu = ReplyKeyboardMarkup(
@@ -21,6 +22,11 @@ cancel_buy_btn = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 
+back_to_balance_page_btn = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="❌ Отменить", callback_data="back_to_balance_page")]
+])
+
+
 def tariffs_btn(other_tariffs: List[Tariff], back_btn: bool=False):
     btns =[]
     for tariff in other_tariffs:
@@ -31,12 +37,14 @@ def tariffs_btn(other_tariffs: List[Tariff], back_btn: bool=False):
     return InlineKeyboardMarkup(inline_keyboard=btns)
 
 
-def balance_keyboard(balance: int) -> InlineKeyboardMarkup:
+def balance_keyboard(balance: int, user_channel_status: bool) -> InlineKeyboardMarkup:
     btns = []
 
     btns.append([InlineKeyboardButton(text="💰 Пополнить", callback_data="balance_plus")])
     if balance >= 100:
         btns.append([InlineKeyboardButton(text="💸 Вывести", callback_data="balance_give")])
+    if user_channel_status == False:
+        btns.append([InlineKeyboardButton(text="💰 Получить 100 рублей", url=settings.CHANNEL_LINK)])
 
     return InlineKeyboardMarkup(inline_keyboard=btns)
 
@@ -54,4 +62,19 @@ def pay_link_btn(link: str):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Оплатить", url=link)],
         [InlineKeyboardButton(text="❌ Отменить", callback_data="balance_plus")]
+    ])
+
+def instructions_btn(instructions: List[Instruction]):
+    btns = []
+    for instruction in instructions:
+        btns.append(
+            [InlineKeyboardButton(text=instruction.value, callback_data=f"instruction_{instruction.id}")]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=btns)
+
+
+def withdrawal_btn(withdrawal_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🟢 Подтвердить", callback_data=f"withdrawal_answer_yes_{withdrawal_id}")],
+        [InlineKeyboardButton(text="🔴 Отклонить", callback_data=f"withdrawal_answer_no_{withdrawal_id}")]
     ])

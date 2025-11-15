@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     PAGINATION_COUNT: int = 2
     CRYPTO_PAY_TOKEN: str
     VPN_GB: int = 50
+    USDT_PER_STAR: float
+    
+    GROUP_ID: int
+    CHANNEL_LINK: str
 
     USDT_COURSE: int
 

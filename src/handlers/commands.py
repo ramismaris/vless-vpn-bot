@@ -1,13 +1,17 @@
 import logging
 from aiogram import Router, F
 from aiogram.types import Message
-from aiogram.filters import CommandStart, Command
-from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.fsm.context import FSMContext
+from sqlalchemy.ext.asyncio import AsyncSession
+from aiogram.filters import CommandStart, Command
 
-from src.keyboards.user_keyboards import user_menu, balance_keyboard, tariffs_btn
-from src.utils.helpers import get_reflink, decode_payload, give_me_key
-from src.database.repositories import UserRepository, SettingsRepository, TariffRepository
+from src.utils.helpers import get_reflink, decode_payload, give_me_key, user_enable
+from src.keyboards.user_keyboards import (
+    user_menu, balance_keyboard, tariffs_btn, instructions_btn
+)
+from src.database.repositories import (
+    UserRepository, SettingsRepository, TariffRepository, InstructionRepository
+)
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -15,7 +19,6 @@ router = Router()
 
 @router.message(CommandStart())
 async def start_command(message: Message, session: AsyncSession, state: FSMContext):
-   
     await state.clear()
     user_id = message.from_user.id
     username = message.from_user.username
@@ -52,7 +55,6 @@ async def start_command(message: Message, session: AsyncSession, state: FSMConte
 @router.message(F.text == "🆘 Помощь")
 @router.message(Command("help"))
 async def help_command(message: Message, state: FSMContext):
-    
     await state.clear()
     txt = (
         "ℹ️ Нужна помощь, или возникли вопросы?\n"
@@ -70,7 +72,6 @@ async def help_command(message: Message, state: FSMContext):
 @router.message(F.text == "💼 Баланс")
 @router.message(Command("help"))
 async def balance_command(message: Message, session: AsyncSession, state: FSMContext):
-
     await state.clear()
     user_id = message.from_user.id
     user_info = await UserRepository.give_user(
@@ -99,7 +100,8 @@ async def balance_command(message: Message, session: AsyncSession, state: FSMCon
         f"→ Только для вывода (мин. 100 ₽)\n\n"
     )
     btn = balance_keyboard(
-        balance=referral_rub
+        balance=referral_rub,
+        user_channel_status=user_info.has_channel_bonus
     )
     
     await message.answer(
@@ -113,10 +115,6 @@ async def balance_command(message: Message, session: AsyncSession, state: FSMCon
 @router.message(Command("add_friend"))
 async def add_friend_command(message: Message, session: AsyncSession, state: FSMContext):
     user_id = message.from_user.id
-    user_info = await UserRepository.give_user(
-        async_session=session,
-        user_id=user_id
-    )
     user_friends = await UserRepository.get_user_friends(
         async_session=session,
         user_id=user_id
@@ -159,9 +157,9 @@ async def buy_command(message: Message, session: AsyncSession, state: FSMContext
     )
 
 
-@router.message(F.text == "🔑 Мой ключ")
-@router.message(Command("key"))
-async def key_command(message: Message, session: AsyncSession, state: FSMContext):
+@router.message(F.text == "➕ Получить доступ")
+@router.message(Command("access"))
+async def access_command(message: Message, session: AsyncSession):
     user_id = message.from_user.id
     user_info = await  UserRepository.give_user(
         async_session=session,
@@ -170,8 +168,90 @@ async def key_command(message: Message, session: AsyncSession, state: FSMContext
     day_price = await SettingsRepository.get_daily_cost_cents(
         async_session=session
     )
-    # if user_info.vpn_key is None:
-    #     if user_info.main_balance >= int(day_price):
-    await give_me_key(
-        full_name=user_info.full_name
+    if user_info.vpn_key is None:
+        balance = user_info.main_balance / 100
+        if balance >= day_price / 100:
+            vless_uuid, subscription_url, trojan_password = await give_me_key(
+                full_name=user_info.full_name
+            )
+            await UserRepository.update_user_vpn_values(
+                user_id=user_id,
+                async_session=session,
+                uuid=vless_uuid,
+                key=subscription_url,
+                trojan_password=trojan_password
+            )
+        else:
+            txt = "❌ Пополните баланс для доступа к ключу"
+            await message.answer(
+                text=txt,
+                parse_mode="HTML"
+            )
+            return
+    else:
+        if user_info.is_active == True and user_info.main_balance >= day_price:
+            await user_enable(
+                user_id=user_id,
+                user_uuid=user_info.vless_uuid
+            )
+        vless_uuid = user_info.vless_uuid
+        subscription_url = user_info.vpn_key
+        trojan_password = user_info.password
+
+    txt = (
+        "Информация о ключе:\n\n"
+        f"Ссылка для регистрации: {subscription_url}"
     )
+    await message.answer(
+        text=txt,
+        parse_mode="HTML",
+        protect_content=False
+    )
+
+
+@router.message(F.text == "🔑 Мой ключ")
+@router.message(Command("key"))
+async def key_command(message: Message, session: AsyncSession):
+    user_id = message.from_user.id
+    user_info = await UserRepository.give_user(
+        async_session=session,
+        user_id=user_id
+    )
+    if not user_info.vless_uuid:
+        txt = "❌ У вас отсутствуют доступные ключи"
+        await message.answer(
+            text=txt,
+            parse_mode="HTML"
+        )
+        return
+    other_instructions = await InstructionRepository.get_other_instructions(
+        async_session=session
+    )
+    btn = instructions_btn(
+        instructions=other_instructions
+    )
+    txt = "Выберите ваше устройство"
+    await message.answer(
+        text=txt,
+        reply_markup=btn,
+        parse_mode="HTML"
+    )
+
+
+@router.message(Command("activate"))
+async def activate_command(message: Message, session: AsyncSession):
+    user_info = await UserRepository.give_user(
+        async_session=session,
+        user_id=message.from_user.id
+    )
+    if user_info.vless_uuid:
+        await user_enable(
+            user_id=user_info.user_id,
+            user_uuid=user_info.vless_uuid,
+            session=session
+        )
+        await UserRepository.update_balance(
+            user_id=user_info.user_id,
+            async_session=session,
+            new_balance=20000
+        )
